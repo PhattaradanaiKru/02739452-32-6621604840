@@ -1,0 +1,10 @@
+.git
+.env
+.vendor
+data
+logs
+__pycache__
+reports
+output
+scripts/build_summary.py
+scripts/requirements-summary.txt

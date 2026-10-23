@@ -1,0 +1,146 @@
+# Based on suriyapi/workshop_airflow_on_docker (Airflow 2.10.4 / Celery).
+name: japan-city-atlas
+x-airflow-common: &airflow-common
+  build: .
+  image: japan-city-atlas:local
+  user: "${AIRFLOW_UID:-50000}:0"
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${METADATA_PASSWORD:?Run scripts/setup_env.py}@postgres/airflow
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:${METADATA_PASSWORD}@postgres/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+    AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY:?Run scripts/setup_env.py}
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:?Run scripts/setup_env.py}
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
+    DATABASE_URL: postgresql://atlas:${TARGET_PASSWORD:?Run scripts/setup_env.py}@postgres_target:5432/japan
+    MIN_CITIES: ${MIN_CITIES:-100}
+    DISABLED_SOURCES: ${DISABLED_SOURCES:-}
+    DATA_DIR: /opt/airflow/data
+    PYTHONPATH: /opt/airflow
+  volumes:
+    - ./dags:/opt/airflow/dags:ro
+    - ./pipeline:/opt/airflow/pipeline:ro
+    - ./web:/opt/airflow/web:ro
+    - ./scripts:/opt/airflow/scripts:ro
+    - ./tests:/opt/airflow/tests:ro
+    - pipeline-data:/opt/airflow/data
+    - ./logs:/opt/airflow/logs
+  depends_on: &airflow-deps
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    postgres_target:
+      condition: service_healthy
+  restart: unless-stopped
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: ${METADATA_PASSWORD}
+      POSTGRES_DB: airflow
+    volumes:
+      - metadata-db:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U airflow -d airflow']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  redis:
+    image: redis:7.2-bookworm
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  postgres_target:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: ${TARGET_PASSWORD}
+      POSTGRES_DB: japan
+    ports:
+      - '127.0.0.1:${TARGET_PORT:-5433}:5432'
+    volumes:
+      - target-db:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U atlas -d japan']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command: [-c, 'mkdir -p /opt/airflow/data /opt/airflow/logs && chown -R 50000:0 /opt/airflow/data /opt/airflow/logs && exec /entrypoint airflow version']
+    user: '0:0'
+    environment:
+      <<: *airflow-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: airflow
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_PASSWORD:?Run scripts/setup_env.py}
+    restart: 'no'
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - '127.0.0.1:${AIRFLOW_PORT:-8080}:8080'
+    depends_on:
+      <<: *airflow-deps
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, curl, --fail, 'http://localhost:8080/health']
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      <<: *airflow-deps
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, curl, --fail, 'http://localhost:8974/health']
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+  airflow-worker:
+    <<: *airflow-common
+    command: celery worker
+    environment:
+      <<: *airflow-env
+      AIRFLOW__CELERY__WORKER_CONCURRENCY: '4'
+      DUMB_INIT_SETSID: '0'
+    depends_on:
+      <<: *airflow-deps
+      airflow-init:
+        condition: service_completed_successfully
+  web:
+    <<: *airflow-common
+    entrypoint: []
+    command: [gunicorn, '--bind', '0.0.0.0:8000', '--workers', '2', '--access-logfile', '-', 'web.app:app']
+    ports:
+      - '127.0.0.1:${WEB_PORT:-8000}:8000'
+    healthcheck:
+      test: [CMD, curl, --fail, 'http://localhost:8000/health']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      postgres_target:
+        condition: service_healthy
+volumes:
+  metadata-db:
+  target-db:
+  pipeline-data:

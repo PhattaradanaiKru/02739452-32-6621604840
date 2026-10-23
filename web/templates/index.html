@@ -1,0 +1,65 @@
+{% from 'icons.html' import icon %}
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ข้อมูลเมืองญี่ปุ่น · ประชากรและภูมิศาสตร์</title>
+  <meta name="description" content="สำรวจประชากรและพิกัดเมืองญี่ปุ่น พร้อมแหล่งอ้างอิงและสถานะการรวบรวมข้อมูล">
+  <link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static',filename='interface.css') }}">
+</head>
+<body>
+<aside class="sidebar">
+  <a class="brand" href="/"><span class="sun"></span><span>ข้อมูลเมือง<br><b>ประเทศญี่ปุ่น</b></span></a>
+  <div class="nav-label">เมนูหลัก</div>
+  <nav aria-label="เมนูหลัก">
+    <button class="nav active" data-view="overview" aria-current="page">{{ icon('map') }} <span class="nav-text">สำรวจเมือง</span></button>
+    <button class="nav" data-view="pipeline">{{ icon('activity') }} <span class="nav-text">สถานะการรวบรวม</span></button>
+    <button class="nav" data-view="quality">{{ icon('shield') }} <span class="nav-text">คุณภาพข้อมูล</span></button>
+    <button class="nav" data-view="sources">{{ icon('database') }} <span class="nav-text">แหล่งข้อมูลและวิธีการ</span></button>
+  </nav>
+  <div class="sidebar-foot"><span class="live-dot"></span> เชื่อมต่อ PostgreSQL<br><small>ประชากรและภูมิศาสตร์เมือง<br>ประเทศญี่ปุ่น · ระดับเทศบาล</small></div>
+</aside>
+<main>
+  <header class="topbar"><span>ฐานข้อมูลเมือง <i>/</i> ประเทศญี่ปุ่น</span><span class="top-right">สำมะโน ค.ศ. 2020 <span class="jp">ญี่ปุ่น</span></span></header>
+  <div id="error" class="error" role="alert" hidden></div>
+  <section id="overview" class="view">
+    <div class="page-heading"><div><div class="eyebrow">ข้อมูลประชากรและภูมิศาสตร์เมือง</div><h1>ข้อมูลประชากรและพิกัดเมืองในประเทศญี่ปุ่น</h1><p>สำรวจจำนวนประชากร ที่ตั้งเมือง และข้อมูลอ้างอิงจากหลายแหล่ง</p></div><a id="export" class="button" href="/api/export.csv">{{ icon('download') }} <span>ดาวน์โหลด CSV</span></a></div>
+    <div class="dataset-meta"><span class="live-dot"></span><b id="dataset-status">รอการรวบรวมข้อมูลครั้งแรก</b><span id="last-updated"></span></div>
+    <div class="kpis">
+      <article><div class="metric-heading"><span>เมืองที่เลือก</span><div class="metric-icon">{{ icon('building') }}</div></div><strong id="kpi-cities">—</strong><small>จำนวนเทศบาลเมืองที่ไม่ซ้ำกัน</small></article>
+      <article><div class="metric-heading"><span>ประชากรรวมที่เลือก</span><div class="metric-icon">{{ icon('users') }}</div></div><strong id="kpi-population">—</strong><small>รวมเฉพาะเมืองตามตัวกรอง</small></article>
+      <article><div class="metric-heading"><span>จังหวัดที่ครอบคลุม</span><div class="metric-icon">{{ icon('pin') }}</div></div><strong id="kpi-prefectures">—</strong><small>จำนวนจังหวัดในรายการที่เลือก</small></article>
+      <article><div class="metric-heading"><span>ความครอบคลุมสำมะโน</span><div class="metric-icon">{{ icon('shield') }}</div></div><strong id="kpi-official">—</strong><small>สัดส่วนเมืองที่มีประชากรปี 2020</small></article>
+    </div>
+    <form id="filters" class="filters">
+      <label class="search"><span class="filter-label">ค้นหาชื่อเมืองหรือรหัสเทศบาล</span><span class="search-control">{{ icon('search') }}<input name="q" placeholder="ค้นหาชื่อเมืองหรือรหัสเทศบาล…" autocomplete="off"></span></label>
+      <label><span class="filter-label">จังหวัด</span><select name="prefecture" id="prefecture"><option value="">ทุกจังหวัด</option></select></label>
+      <label><span class="filter-label">ปีข้อมูลประชากร</span><select name="year"><option value="">ทุกปีข้อมูล</option><option value="2020" selected>สำมะโนปี 2020</option><option value="unknown">ไม่ระบุปีข้อมูล</option></select></label>
+      <label><span class="filter-label">แหล่งข้อมูล</span><select name="source"><option value="">ทุกแหล่งข้อมูล</option><option value="estat">มีข้อมูล e-Stat</option><option value="undata">มีข้อมูล UNdata</option><option value="geonames">มีข้อมูล GeoNames</option></select></label>
+      <label><span class="filter-label">ประชากรขั้นต่ำ</span><select name="min_population"><option value="0">ทุกขนาดประชากร</option><option value="100000">ตั้งแต่ 100,000 คน</option><option value="500000">ตั้งแต่ 500,000 คน</option><option value="1000000">ตั้งแต่ 1 ล้านคน</option></select></label>
+      <button type="reset" class="reset">{{ icon('refresh') }} ล้างตัวกรอง</button>
+    </form>
+    <div class="charts">
+      <article class="panel map-panel"><div class="panel-title"><div><h2>การกระจายตัวของเมือง</h2><p>พิกัดเทศบาล · ขนาดวงกลมแสดงจำนวนประชากร</p></div><span class="tag">ญี่ปุ่น</span></div><div id="map" aria-label="การกระจายของเมืองตามละติจูดและลองจิจูด"></div><div class="map-legend"><span class="legend-dot"></span> เมืองที่เลือก <span>จุดอ้างอิงเทศบาลจาก GeoNames</span></div></article>
+      <article class="panel ranking-panel"><div class="panel-title"><div><h2>เมืองที่มีประชากรมากที่สุด</h2><p>10 อันดับแรกจากรายการที่เลือก</p></div><span class="tag">คน</span></div><div id="ranking"></div></article>
+    </div>
+    <article class="panel table-panel"><div class="panel-title"><div><h2>รายชื่อเมือง <span id="table-count" class="count">0</span></h2><p>เลือกเมืองเพื่อเปรียบเทียบข้อมูลแต่ละแหล่ง</p></div><label class="sort-label">เรียงตาม <select id="sort" aria-label="เรียงลำดับเมือง"><option value="population">ประชากรมากไปน้อย</option><option value="name">ชื่อเมือง A–Z</option><option value="prefecture">ชื่อจังหวัด A–Z</option></select></label></div>
+      <div class="table-scroll"><table><thead><tr><th>#</th><th>เมือง / รหัสเทศบาล</th><th>จังหวัด</th><th class="numeric">ประชากร (คน)</th><th>ปีข้อมูล</th><th>แหล่งข้อมูล</th><th>พิกัด</th></tr></thead><tbody id="city-table"></tbody></table></div>
+      <div class="table-foot"><span id="pagination-info"></span><div><button id="previous" class="pager" aria-label="หน้าก่อนหน้า">{{ icon('left') }} <span>ก่อนหน้า</span></button><button id="next" class="pager" aria-label="หน้าถัดไป"><span>ถัดไป</span> {{ icon('right') }}</button></div></div>
+    </article>
+    <p class="footnote">เลือกค่าประชากรตามลำดับ e-Stat → UNdata → GeoNames ค่าที่ไม่มีปีสำมะโนจะแสดงว่า “ไม่ระบุปี” ชุดข้อมูลครอบคลุมเฉพาะเมืองที่รวบรวมได้ ไม่ใช่ประชากรทั้งประเทศ ชื่อเมืองคงรูปสะกดตามต้นทางเพื่อใช้อ้างอิง</p>
+  </section>
+  <section id="pipeline" class="view" hidden><div class="page-heading"><div><div class="eyebrow">การทำงานของระบบ</div><h1>ติดตามการรวบรวมข้อมูล</h1><p>ประวัติการทำงานและสถานะแต่ละแหล่ง อ่านจาก PostgreSQL โดยตรง</p></div><button class="button refresh">{{ icon('refresh') }} <span>อัปเดตสถานะ</span></button></div><div class="pipeline-flow"><span>เตรียมระบบ</span><b>→</b><span>ดึง 3 แหล่งพร้อมกัน</span><b>→</b><span>รวมและตรวจสอบ</span><b>→</b><span>ตัดสินคุณภาพ</span><b>→</b><span>บันทึกหรือแยกตรวจ</span></div><div id="source-cards" class="source-cards"></div><article class="panel"><div class="panel-title"><h2>ประวัติการทำงานล่าสุด</h2></div><div class="table-scroll"><table><thead><tr><th>รหัสรอบการทำงาน</th><th>สถานะ</th><th>จำนวนเมือง</th><th>รายการที่ไม่ผ่าน</th><th>เริ่มเมื่อ</th><th>สิ้นสุดเมื่อ</th></tr></thead><tbody id="run-table"></tbody></table></div></article><p class="footnote">สถานะ “สำเร็จบางแหล่ง” หมายถึงเผยแพร่ข้อมูลที่ผ่านเกณฑ์จากแหล่งที่ยังใช้งานได้ หาก GeoNames ล่มหลังเคยรวบรวมสำเร็จ ระบบจะใช้พิกัดเดิมพร้อมรักษาเวลาดึงเดิม หากฐานข้อมูลยังว่างและไม่มีพิกัดเพียงพอ ระบบอาจไม่ผ่านเกณฑ์คุณภาพ</p></section>
+  <section id="quality" class="view" hidden><div class="page-heading"><div><div class="eyebrow">ความน่าเชื่อถือและการตรวจสอบ</div><h1>ตรวจข้อมูลก่อนเผยแพร่</h1><p>แสดงผลตรวจคุณภาพและรายการที่จับคู่ไม่ได้ พร้อมรักษาชุดข้อมูลเดิมเมื่อไม่ผ่านเกณฑ์</p></div></div><div id="quality-summary" class="quality-summary"></div><div class="checks"><span>ข้อมูลผ่านเกณฑ์อย่างน้อย 100 เมือง</span><span>ประชากรมากกว่าศูนย์</span><span>พิกัดอยู่ในประเทศญี่ปุ่น</span><span>รหัส GeoNames ไม่ซ้ำ</span><span>จับคู่เมืองและจังหวัดตรงกัน</span><span>รักษาปีข้อมูลประชากร</span></div><article class="panel"><div class="panel-title"><div><h2>รายการที่ไม่ผ่านในรอบล่าสุด</h2><p>เก็บรายการที่จับคู่ไม่ได้ไว้ตรวจสอบ โดยไม่เดาว่าตรงกับเมืองใด</p></div></div><div id="rejection-reasons" class="reason-list"></div><div class="table-scroll"><table><thead><tr><th>แหล่งข้อมูล</th><th>ชื่อเมือง</th><th>เหตุผล</th></tr></thead><tbody id="rejected-table"></tbody></table></div><p class="footnote padded">แสดงสูงสุด 100 รายการ ดูบันทึกทั้งหมดได้ในตาราง rejected_records ของ PostgreSQL</p></article></section>
+  <section id="sources" class="view" hidden><div class="page-heading"><div><div class="eyebrow">ที่มาและการอ้างอิง</div><h1>สามแหล่งข้อมูลในชุดเดียว</h1><p>ตรวจสอบที่มาได้ ใช้ขอบเขตพื้นที่สอดคล้องกัน และไม่สร้างค่าข้อมูลขึ้นเอง</p></div></div><div class="method-grid">
+    <article class="panel method"><span class="source-pill estat">e-Stat</span><h2>ข้อมูลสำมะโนหลัก</h2><p>ใช้ API แบบ JSON สาธารณะของระบบสถิติรัฐบาลญี่ปุ่น รหัสตัวชี้วัด 0201010000000010000 ปี ค.ศ. 2020 เชื่อมชื่อเมืองกับรหัสเทศบาลและจังหวัดจากข้อมูลพื้นที่ เลือกเฉพาะเทศบาลเมืองที่ชื่อลงท้ายด้วย -shi</p><a href="https://dashboard.e-stat.go.jp/en/" target="_blank" rel="noopener">เปิดระบบสถิติรัฐบาลญี่ปุ่น ↗</a></article>
+    <article class="panel method"><span class="source-pill undata">UNdata</span><h2>ข้อมูลสำหรับเปรียบเทียบ</h2><p>ดึงตาราง HTML ด้วย requests และ BeautifulSoup จากสถิติประชากรตาราง 240 เลือกประเทศญี่ปุ่น ปี 2020 ประชากรรวมทุกเพศ และขอบเขตตัวเมือง เก็บข้อมูลครบทุกหน้า หากชื่อซ้ำ ต้องจับคู่ได้เมืองเดียว หรือมีประชากรปีเดียวกันตรงกับ e-Stat เพียงเมืองเดียว</p><a href="https://data.un.org/Data.aspx?d=POP&f=tableCode%3A240%3BcountryCode%3A392" target="_blank" rel="noopener">เปิดตารางประชากร UNdata ↗</a></article>
+    <article class="panel method"><span class="source-pill geonames">GeoNames</span><h2>ข้อมูลพิกัดอ้างอิง</h2><p>ดึง HTML หน้าค้นหาเทศบาลเมืองญี่ปุ่น ไม่รวมเขตที่ยกเลิกแล้ว เขตย่อย ตำบล หมู่บ้าน และจังหวัด พิกัดเป็นจุดอ้างอิงเทศบาล ไม่ใช่เส้นขอบเขตเมือง แหล่งนี้ไม่ได้ระบุปีสำรวจประชากรไว้ในข้อมูลที่ใช้</p><a href="https://www.geonames.org/" target="_blank" rel="noopener">เปิด GeoNames · สัญญาอนุญาต CC BY 4.0 ↗</a></article>
+    <article class="panel method"><span class="tag">วิธีการ</span><h2>รวมข้อมูลอย่างไร</h2><p>ปรับเครื่องหมายกำกับเสียงและคำลงท้ายชื่อเมือง แล้วจับคู่เมืองกับจังหวัดให้ตรงกัน ใช้รหัส GeoNames เป็นรหัสหลัก เก็บประชากรแยกตามแหล่งและปี เลือก e-Stat ก่อน UNdata และ GeoNames ตามลำดับ โดยไม่เฉลี่ยค่าประชากรที่ต่างกัน</p><p>ตรวจ robots.txt และจำกัดความถี่ทุกครั้งที่รวบรวม เก็บข้อมูลดิบ เวลาดึง และค่า SHA-256 ไว้ตรวจสอบ หากไม่ผ่านคุณภาพจะยังคงใช้ชุดข้อมูลที่เผยแพร่สำเร็จล่าสุด</p></article>
+  </div></section>
+  <footer>ข้อมูลเมืองญี่ปุ่น <span>02739452 · ประชากรและภูมิศาสตร์เมือง</span></footer>
+</main>
+<dialog id="city-dialog"><div class="dialog-top"><span class="eyebrow">เปรียบเทียบข้อมูลรายเมือง</span><button id="close-dialog" aria-label="ปิดรายละเอียด">{{ icon('close') }} <span>ปิด</span></button></div><div id="city-detail"></div></dialog>
+<script src="{{ url_for('static',filename='app.js') }}" defer></script>
+</body></html>
